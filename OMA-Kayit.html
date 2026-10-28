@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>OMA Kayıt</title>
+<style>
+/* Düzen: tek sütun, telefon öncelikli; üstte durum şeridi, ortada canlı grafik, altta sonuçlar */
+:root{
+  --bg:#f3f5f2; --panel:#ffffff; --fg:#17201b; --muted:#5f6b64; --line:#d7ddd8;
+  --accent:#0f6e56; --accent-fg:#ffffff; --x:#c2410c; --y:#1d4ed8; --z:#0f6e56; --warn:#b45309; --bad:#b91c1c;
+  --font:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; --mono:ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root{--bg:#121714;--panel:#1b221e;--fg:#e8ede9;--muted:#9aa69f;--line:#2e3832;--accent:#3fbf9a;--accent-fg:#0d1511;--x:#fb923c;--y:#60a5fa;--z:#3fbf9a;color-scheme:dark}}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--font);font-size:15px;line-height:1.45}
+body{padding-block:12px 40px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));max-width:720px;margin-inline:auto}
+h1{font-size:1.25rem;margin:0;letter-spacing:.01em}
+h2{font-size:.8rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 0 8px}
+header{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:12px}
+header small{color:var(--muted)}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:12px}
+.status{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;font-variant-numeric:tabular-nums}
+.status div{min-width:0}
+.status b{display:block;font-size:1.15rem;font-weight:600}
+.status span{font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:.75rem;background:var(--line)}
+.pill.ok{background:var(--accent);color:var(--accent-fg)}
+.pill.bad{background:var(--bad);color:#fff}
+.pill.warn{background:var(--warn);color:#fff}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:end}
+label{display:flex;flex-direction:column;gap:4px;font-size:.8rem;color:var(--muted);min-width:0;flex:1 1 120px}
+input,select{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:7px 9px;width:100%}
+button{font:inherit;font-weight:600;border:0;border-radius:8px;padding:12px 18px;cursor:pointer;background:var(--line);color:var(--fg)}
+button.primary{background:var(--accent);color:var(--accent-fg)}
+button.stop{background:var(--bad);color:#fff}
+button:disabled{opacity:.45;cursor:not-allowed}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.actions{display:flex;gap:10px;flex-wrap:wrap}
+.actions button{flex:1 1 140px}
+canvas{width:100%;height:auto;display:block;border-radius:6px;background:var(--bg)}
+.legend{display:flex;gap:14px;font-size:.78rem;color:var(--muted);margin-top:6px}
+.legend i{display:inline-block;width:10px;height:3px;vertical-align:middle;margin-right:5px;border-radius:2px}
+table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;font-size:.9rem}
+th,td{text-align:right;padding:6px 6px;border-bottom:1px solid var(--line)}
+th:first-child,td:first-child{text-align:left}
+th{font-weight:600;color:var(--muted);font-size:.78rem;white-space:nowrap}
+.tablewrap{overflow-x:auto}
+.note{font-size:.85rem;color:var(--muted);margin:8px 0 0}
+.hint{font-size:.85rem;color:var(--muted)}
+.hint ol{padding-left:18px;margin:6px 0}
+.ok-text{color:var(--accent)} .bad-text{color:var(--bad)}
+details summary{cursor:pointer;color:var(--muted);font-size:.85rem}
+#history li{font-size:.85rem;padding:4px 0;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
+.big{font-size:1.6rem;font-weight:700;letter-spacing:-.01em}
+.modecard{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;align-items:baseline;padding:10px 0;border-bottom:1px solid var(--line)}
+.modecard:last-child{border-bottom:0}
+.modecard .k{font-size:.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<header>
+  <h1>OMA Kayıt</h1>
+  <small>telefon ivmeölçeriyle doğal periyot ve sönüm · v0.2</small>
+</header>
+
+<section class="panel">
+  <h2>Sensör durumu</h2>
+  <div class="status">
+    <div><b id="stSensor"><span class="pill" id="pillSensor">bekliyor</span></b><span>ivmeölçer</span></div>
+    <div><b id="stFs">–</b><span>Hz (ölçülen)</span></div>
+    <div><b id="stN">0</b><span>örnek</span></div>
+    <div><b id="stT">0:00</b><span>süre</span></div>
+  </div>
+  <p class="note" id="diag" style="font-family:var(--mono);font-size:.78rem"></p>
+  <p class="note" id="sensorNote">Kaydı başlatınca sensör okunmaya başlar. İlk birkaç saniyede ölçülen Hz değeri oturur.</p>
+</section>
+
+<section class="panel">
+  <h2>Ölçüm ayarları</h2>
+  <div class="row">
+    <label>Etiket (bina / kat / konum)<input id="label" placeholder="örn. Müh. Fak. B blok, 4. kat, orta"></label>
+    <label>Kayıt süresi (dk)<input id="dur" type="number" min="0.5" step="0.5" value="5"></label>
+  </div>
+  <div class="row" style="margin-top:10px">
+    <label>Frekans aralığı (Hz)<div style="display:flex;gap:6px"><input id="fmin" type="number" step="0.1" value="0.3"><input id="fmax" type="number" step="0.5" value="20"></div></label>
+    <label>Analiz örnekleme (Hz)<select id="fs"><option>25</option><option selected>50</option><option>100</option></select></label>
+    <label>Sensör verisi<select id="src"><option value="g" selected>Ham ivme (yerçekimi dahil)</option><option value="lin">Doğrusal ivme (yerçekimi çıkarılmış)</option></select></label>
+  </div>
+  <p class="hint" style="margin-top:10px">Telefonu ekran yukarı, döşemeye düz ve sabit koyun (bant/ağırlıkla). Z düşey, X kısa kenar, Y uzun kenar yönüdür. Kayıt boyunca telefona dokunmayın; yapıdaki ortam titreşimi (rüzgâr, trafik, insanlar) yeterlidir.</p>
+</section>
+
+<section class="panel">
+  <div class="actions">
+    <button class="primary" id="btnStart">Kaydı başlat</button>
+    <button class="stop" id="btnStop" disabled>Durdur ve analiz et</button>
+  </div>
+  <p class="note" id="msg"></p>
+</section>
+
+<section class="panel">
+  <h2>Canlı ivme (son 10 s, m/s²)</h2>
+  <canvas id="live" width="700" height="220"></canvas>
+  <div class="legend"><span><i style="background:var(--x)"></i>X</span><span><i style="background:var(--y)"></i>Y</span><span><i style="background:var(--z)"></i>Z</span></div>
+</section>
+
+<section class="panel" id="results" hidden>
+  <h2>Sonuçlar</h2>
+  <div id="summary"></div>
+  <h2 style="margin-top:14px">Güç spektrumu (dB)</h2>
+  <canvas id="psd" width="700" height="260"></canvas>
+  <div class="legend"><span><i style="background:var(--x)"></i>X</span><span><i style="background:var(--y)"></i>Y</span><span><i style="background:var(--z)"></i>Z</span><span>● tespit edilen tepe</span></div>
+  <h2 style="margin-top:14px">Tespit edilen modlar</h2>
+  <div class="tablewrap"><table id="modes"><thead><tr><th>Eksen</th><th>f (Hz)</th><th>T (s)</th><th>Sönüm ξ (yarı güç)</th><th>Sönüm ξ (RDT)</th><th>Belirginlik</th></tr></thead><tbody></tbody></table></div>
+  <p class="note">ξ: sönüm oranı. Yarı güç bant genişliği ve rastgele azalım (RDT) iki bağımsız tahmindir; birbirine yakınsa güvenilirdir. Belirginlik, tepenin çevresindeki gürültü tabanından kaç dB yukarıda olduğudur (≥10 dB iyi).</p>
+  <div class="actions" style="margin-top:12px">
+    <button id="btnCsv">Ham veriyi indir (CSV)</button>
+    <button id="btnJson">Sonuçları indir (JSON)</button>
+  </div>
+</section>
+
+<section class="panel">
+  <details><summary>Bu cihazdaki önceki ölçümler</summary><ul id="history" style="list-style:none;padding:0;margin:8px 0 0"></ul></details>
+</section>
+
+<script>
+// OMA çekirdek analiz fonksiyonları — hem tarayıcıda hem Node'da çalışır.
+(function (root, factory) {
+  if (typeof module === 'object' && module.exports) module.exports = factory();
+  else root.OMA = factory();
+})(typeof self !== 'undefined' ? self : this, function () {
+
+  // ---------- yardımcılar ----------
+  function nextPow2(n) { let p = 1; while (p < n) p <<= 1; return p; }
+
+  // Düzgün olmayan zaman damgalı örnekleri sabit fs'e lineer interpolasyonla getirir.
+  // t: saniye (artan), x: değerler. Dönüş {fs, y}
+  function resample(t, x, fs) {
+    const n = t.length;
+    if (n < 2) return { fs, y: new Float64Array(0) };
+    const dt = 1 / fs;
+    const T = t[n - 1] - t[0];
+    const m = Math.floor(T * fs) + 1;
+    const y = new Float64Array(m);
+    let j = 0;
+    for (let i = 0; i < m; i++) {
+      const ti = t[0] + i * dt;
+      while (j < n - 2 && t[j + 1] < ti) j++;
+      const t0 = t[j], t1 = t[j + 1];
+      const a = t1 > t0 ? (ti - t0) / (t1 - t0) : 0;
+      y[i] = x[j] + a * (x[j + 1] - x[j]);
+    }
+    return { fs, y };
+  }
+
+  // Ortalama ve lineer trend çıkarma
+  function detrend(y) {
+    const n = y.length, out = new Float64Array(n);
+    let sx = 0, sy = 0, sxx = 0, sxy = 0;
+    for (let i = 0; i < n; i++) { sx += i; sy += y[i]; sxx += i * i; sxy += i * y[i]; }
+    const d = n * sxx - sx * sx;
+    const b = d !== 0 ? (n * sxy - sx * sy) / d : 0;
+    const a = (sy - b * sx) / n;
+    for (let i = 0; i < n; i++) out[i] = y[i] - (a + b * i);
+    return out;
+  }
+
+  // Yerinde radix-2 FFT (re, im Float64Array, uzunluk 2^k)
+  function fft(re, im) {
+    const n = re.length;
+    for (let i = 1, j = 0; i < n; i++) {
+      let bit = n >> 1;
+      for (; j & bit; bit >>= 1) j ^= bit;
+      j ^= bit;
+      if (i < j) { let t = re[i]; re[i] = re[j]; re[j] = t; t = im[i]; im[i] = im[j]; im[j] = t; }
+    }
+    for (let len = 2; len <= n; len <<= 1) {
+      const ang = -2 * Math.PI / len;
+      const wr = Math.cos(ang), wi = Math.sin(ang);
+      for (let i = 0; i < n; i += len) {
+        let cr = 1, ci = 0;
+        for (let k = 0; k < len / 2; k++) {
+          const ur = re[i + k], ui = im[i + k];
+          const vr = re[i + k + len / 2] * cr - im[i + k + len / 2] * ci;
+          const vi = re[i + k + len / 2] * ci + im[i + k + len / 2] * cr;
+          re[i + k] = ur + vr; im[i + k] = ui + vi;
+          re[i + k + len / 2] = ur - vr; im[i + k + len / 2] = ui - vi;
+          const t = cr * wr - ci * wi; ci = cr * wi + ci * wr; cr = t;
+        }
+      }
+    }
+  }
+
+  function hann(n) {
+    const w = new Float64Array(n);
+    for (let i = 0; i < n; i++) w[i] = 0.5 * (1 - Math.cos(2 * Math.PI * i / (n - 1)));
+    return w;
+  }
+
+  // Welch PSD. y: Float64Array, fs, nfft (2^k), overlap 0.5
+  function welch(y, fs, nfft) {
+    nfft = nfft || Math.min(nextPow2(Math.floor(y.length / 8)), 2048);
+    if (nfft > y.length) nfft = nextPow2(y.length) >> 1;
+    if (nfft < 64) return null;
+    const step = nfft >> 1;
+    const w = hann(nfft);
+    let U = 0; for (let i = 0; i < nfft; i++) U += w[i] * w[i];
+    const half = nfft / 2 + 1;
+    const P = new Float64Array(half);
+    let seg = 0;
+    const re = new Float64Array(nfft), im = new Float64Array(nfft);
+    for (let s = 0; s + nfft <= y.length; s += step) {
+      for (let i = 0; i < nfft; i++) { re[i] = y[s + i] * w[i]; im[i] = 0; }
+      fft(re, im);
+      for (let k = 0; k < half; k++) {
+        let p = (re[k] * re[k] + im[k] * im[k]) / (fs * U);
+        if (k > 0 && k < nfft / 2) p *= 2;
+        P[k] += p;
+      }
+      seg++;
+    }
+    if (seg === 0) return null;
+    for (let k = 0; k < half; k++) P[k] /= seg;
+    const f = new Float64Array(half);
+    for (let k = 0; k < half; k++) f[k] = k * fs / nfft;
+    return { f, P, nfft, segments: seg, df: fs / nfft };
+  }
+
+  // Tepe seçme: fmin–fmax arasında, yerel maksimum, belirginlik (prominence) eşiği (dB)
+  function findPeaks(f, P, opts) {
+    opts = Object.assign({ fmin: 0.3, fmax: 20, minProminenceDb: 6, minSnrDb: 6, maxPeaks: 6 }, opts || {});
+    const n = f.length;
+    const L0 = new Float64Array(n);
+    for (let i = 0; i < n; i++) L0[i] = 10 * Math.log10(P[i] + 1e-30);
+    // tespit için hafif yumuşatma (3 bin)
+    const L = new Float64Array(n);
+    for (let i = 0; i < n; i++) { const a = Math.max(0, i - 1), b = Math.min(n - 1, i + 1); let s = 0; for (let j = a; j <= b; j++) s += L0[j]; L[i] = s / (b - a + 1); }
+    const peaks = [];
+    for (let i = 2; i < n - 2; i++) {
+      if (f[i] < opts.fmin || f[i] > opts.fmax) continue;
+      if (!(L[i] > L[i - 1] && L[i] >= L[i + 1] && L[i] > L[i - 2] && L[i] >= L[i + 2])) continue;
+      // belirginlik: her iki yanda, daha yüksek bir noktaya kadar olan en düşük seviye
+      let lmin = L[i], rmin = L[i];
+      for (let j = i - 1; j >= 0 && L[j] <= L[i]; j--) { lmin = Math.min(lmin, L[j]); if (f[j] < opts.fmin * 0.5) break; }
+      for (let j = i + 1; j < n && L[j] <= L[i]; j++) { rmin = Math.min(rmin, L[j]); if (f[j] > opts.fmax * 1.5) break; }
+      // gürültü tabanı: ±1 Hz penceresinde medyan
+      const win = Math.max(2, Math.round(1.0 / (f[1] - f[0])));
+      const nb = [];
+      for (let j = Math.max(0, i - win); j <= Math.min(n - 1, i + win); j++) nb.push(L[j]);
+      nb.sort((a, b) => a - b);
+      const floor = nb[Math.floor(nb.length / 2)];
+      if (L[i] - floor < opts.minSnrDb) continue;
+      const prom = L[i] - Math.max(lmin, rmin);
+      if (prom >= opts.minProminenceDb) peaks.push({ idx: i, f: f[i], P: P[i], db: L[i], prominence: prom });
+    }
+    peaks.sort((a, b) => b.P - a.P);
+    return peaks.slice(0, opts.maxPeaks).sort((a, b) => a.f - b.f);
+  }
+
+  // Parabolik tepe iyileştirme (dB alanında)
+  function refinePeak(f, P, idx) {
+    if (idx <= 0 || idx >= f.length - 1) return f[idx];
+    const a = Math.log(P[idx - 1] + 1e-30), b = Math.log(P[idx] + 1e-30), c = Math.log(P[idx + 1] + 1e-30);
+    const den = a - 2 * b + c;
+    if (den === 0) return f[idx];
+    const d = 0.5 * (a - c) / den;
+    return f[idx] + d * (f[1] - f[0]);
+  }
+
+  // Yarı güç bant genişliği sönümü: PSD tepesinin yarısına (−3 dB) düştüğü frekanslar
+  function halfPowerDamping(f, P, idx) {
+    const target = P[idx] / 2;
+    let i1 = idx, i2 = idx;
+    while (i1 > 0 && P[i1] > target) i1--;
+    while (i2 < P.length - 1 && P[i2] > target) i2++;
+    if (i1 === 0 || i2 === P.length - 1) return null;
+    const interp = (ia, ib) => { const pa = P[ia], pb = P[ib]; return pb === pa ? f[ia] : f[ia] + (target - pa) * (f[ib] - f[ia]) / (pb - pa); };
+    const fl = interp(i1, i1 + 1), fr = interp(i2 - 1, i2);
+    const fr0 = refinePeak(f, P, idx);
+    const xi = (fr - fl) / (2 * fr0);
+    return { xi, fl, fr, bandwidth: fr - fl };
+  }
+
+  // 2. derece Butterworth bant geçiren (biquad, ileri-geri = sıfır faz)
+  function bandpass(y, fs, flo, fhi) {
+    function biquadLP(fc) { const K = Math.tan(Math.PI * fc / fs), n = 1 / (1 + Math.SQRT2 * K + K * K); return { b0: K * K * n, b1: 2 * K * K * n, b2: K * K * n, a1: 2 * (K * K - 1) * n, a2: (1 - Math.SQRT2 * K + K * K) * n }; }
+    function biquadHP(fc) { const K = Math.tan(Math.PI * fc / fs), n = 1 / (1 + Math.SQRT2 * K + K * K); return { b0: n, b1: -2 * n, b2: n, a1: 2 * (K * K - 1) * n, a2: (1 - Math.SQRT2 * K + K * K) * n }; }
+    function run(x, c) { const o = new Float64Array(x.length); let x1 = 0, x2 = 0, y1 = 0, y2 = 0; for (let i = 0; i < x.length; i++) { const v = c.b0 * x[i] + c.b1 * x1 + c.b2 * x2 - c.a1 * y1 - c.a2 * y2; x2 = x1; x1 = x[i]; y2 = y1; y1 = v; o[i] = v; } return o; }
+    function filtfilt(x, c) { let a = run(x, c); a.reverse(); a = run(a, c); a.reverse(); return a; }
+    let z = filtfilt(y, biquadHP(flo));
+    z = filtfilt(z, biquadLP(fhi));
+    return z;
+  }
+
+  // Rastgele Azalım Tekniği (RDT): seviye geçişi tetikleme, ortalama serbest azalım, üstel zarf uydurma
+  function rdtDamping(y, fs, fn, opts) {
+    opts = Object_assign({ bw: 0.10, cycles: 12, trigLevel: 1.0 }, opts || {});
+    const flo = fn * (1 - opts.bw), fhi = fn * (1 + opts.bw);
+    const z = bandpass(y, fs, Math.max(flo, 0.05), Math.min(fhi, fs / 2 * 0.9));
+    let s = 0; for (let i = 0; i < z.length; i++) s += z[i] * z[i];
+    const sigma = Math.sqrt(s / z.length);
+    const trig = opts.trigLevel * sigma;
+    const N = Math.round(opts.cycles * fs / fn);
+    if (N < 8 || z.length < 3 * N) return null;
+    const avg = new Float64Array(N); let cnt = 0;
+    for (let i = 1; i + N < z.length; i++) {
+      if (z[i - 1] < trig && z[i] >= trig) { // pozitif eğimli seviye geçişi
+        for (let k = 0; k < N; k++) avg[k] += z[i + k];
+        cnt++;
+      }
+    }
+    if (cnt < 10) return null;
+    for (let k = 0; k < N; k++) avg[k] /= cnt;
+    // zarf: yerel maksimumların mutlak değerleri → ln|A| = ln A0 − ξ ωn t lineer uydurma
+    const pts = [];
+    for (let k = 1; k < N - 1; k++) {
+      const a = Math.abs(avg[k]);
+      if (a > Math.abs(avg[k - 1]) && a >= Math.abs(avg[k + 1]) && a > 0) pts.push([k / fs, Math.log(a)]);
+    }
+    if (pts.length < 4) return null;
+    // ilk zirveden sonra genliğin %10'un altına düştüğü noktada kes
+    const A0 = Math.exp(pts[0][1]);
+    const tSkip = 1 / fn; // ilk periyot (gürültü otokorelasyon sivrisi) atlanır
+    const use = pts.filter(p => Math.exp(p[1]) > 0.1 * A0 && p[0] >= tSkip);
+    let sx = 0, sy = 0, sxx = 0, sxy = 0; const n = use.length;
+    for (const [x, yv] of use) { sx += x; sy += yv; sxx += x * x; sxy += x * yv; }
+    const slope = (n * sxy - sx * sy) / (n * sxx - sx * sx);
+    // tepe aralığından frekans
+    let fEst = fn;
+    if (use.length >= 2) { const Tper = 2 * (use[use.length - 1][0] - use[0][0]) / (use.length - 1); if (Tper > 0) fEst = 1 / Tper; }
+    const xi = -slope / (2 * Math.PI * fEst);
+    return { xi, f: fEst, triggers: cnt, signature: Array.from(avg), dt: 1 / fs };
+  }
+  function Object_assign(a, b) { return Object.assign(a, b); }
+
+  // Tam akış: kanal {t, x} → sonuçlar
+  function analyzeChannel(t, x, opts) {
+    opts = Object.assign({ fs: 50, fmin: 0.3, fmax: 20, nfft: null }, opts || {});
+    const r = resample(t, x, opts.fs);
+    const y = detrend(r.y);
+    const psd = welch(y, opts.fs, opts.nfft);
+    if (!psd) return { error: 'Kayıt çok kısa' };
+    const peaks = findPeaks(psd.f, psd.P, { fmin: opts.fmin, fmax: opts.fmax });
+    const modes = peaks.map(p => {
+      const fr = refinePeak(psd.f, psd.P, p.idx);
+      const hp = halfPowerDamping(psd.f, psd.P, p.idx);
+      let rd = null; try { rd = rdtDamping(y, opts.fs, fr); } catch (e) { rd = null; }
+      return { f: fr, T: 1 / fr, prominenceDb: p.prominence, xiHalfPower: hp ? hp.xi : null, xiRDT: rd ? rd.xi : null, rdt: rd };
+    });
+    return { fs: opts.fs, n: y.length, duration: y.length / opts.fs, psd, modes, y };
+  }
+
+  return { resample, detrend, fft, welch, findPeaks, refinePeak, halfPowerDamping, bandpass, rdtDamping, analyzeChannel, nextPow2 };
+});
+
+</script>
+<script>
+(function () {
+  const $ = id => document.getElementById(id);
+  const state = { recording: false, t: [], ax: [], ay: [], az: [], t0: 0, timer: null, wake: null, result: null, lastEvent: 0, evCount: 0 };
+
+  // ---------- sensör ----------
+  // Canlı tampon: sayfa açılır açılmaz dinlenir (kayıt olmasa da), son ~10 s tutulur
+  const live = { t: [], ax: [], ay: [], az: [] };
+  function onMotion(e) {
+    const src = $('src').value;
+    const a = src === 'lin' ? e.acceleration : e.accelerationIncludingGravity;
+    if (!a || a.x == null) return;
+    const now = performance.now();
+    state.evCount++;
+    state.lastEvent = now;
+    live.t.push(now / 1000); live.ax.push(a.x); live.ay.push(a.y); live.az.push(a.z);
+    if (live.t.length > 2500) { live.t.splice(0, 500); live.ax.splice(0, 500); live.ay.splice(0, 500); live.az.splice(0, 500); }
+    if (!state.recording) return;
+    state.t.push((now - state.t0) / 1000);
+    state.ax.push(a.x); state.ay.push(a.y); state.az.push(a.z);
+  }
+  window.addEventListener('devicemotion', onMotion);
+
+  // Tanı bilgisi
+  function diag() {
+    const secure = window.isSecureContext;
+    const proto = location.protocol;
+    let txt = 'Adres türü: ' + proto + (secure ? ' (güvenli bağlam ✓)' : ' (güvenli bağlam DEĞİL ✗)') + '. ';
+    if (!('DeviceMotionEvent' in window)) txt += 'Tarayıcı hareket sensörü API\'sini sunmuyor.';
+    else if (!secure) txt += 'Chrome sensörleri yalnızca güvenli bağlamda verir: dosyayı Chrome adres çubuğuna file:///sdcard/Download/OMA-Kayit.html yazarak açın ya da https:// adresinden açın.';
+    $('diag').textContent = txt;
+  }
+  // Kayıt dışı canlı izleme döngüsü
+  function idleLoop() {
+    if (state.recording) return;
+    const now = performance.now();
+    const n = live.t.length;
+    if (n > 20) {
+      const k = Math.min(n, 300);
+      const fs = (k - 1) / (live.t[n - 1] - live.t[n - k]);
+      $('stFs').textContent = fs.toFixed(1);
+      setPill('ok', 'hazır');
+      $('sensorNote').textContent = 'Sensör ' + fs.toFixed(0) + ' Hz ile okunuyor; kayda başlayabilirsiniz.';
+    } else if (now > 4000 && state.evCount === 0) {
+      setPill('bad', 'veri yok');
+      $('sensorNote').textContent = 'Tarayıcıdan ivmeölçer verisi gelmiyor. Aşağıdaki tanı satırına bakın.';
+    }
+    if (now - lastTick > 80) { drawLive(live); lastTick = now; }
+    requestAnimationFrame(idleLoop);
+  }
+
+  async function start() {
+    const dur = Math.max(0.2, parseFloat($('dur').value) || 5);
+    // iOS tarzı izin gerekiyorsa iste
+    if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+      try { const r = await DeviceMotionEvent.requestPermission(); if (r !== 'granted') msg('Sensör izni verilmedi; veri gelmezse tarayıcı ayarlarından hareket sensörü iznini açın.', true); } catch (err) { /* Android Chrome'da izin istenmez */ }
+    }
+    state.t = []; state.ax = []; state.ay = []; state.az = []; state.evCount = 0;
+    state.t0 = performance.now(); state.recording = true; state.result = null;
+    $('results').hidden = true;
+    $('btnStart').disabled = true; $('btnStop').disabled = false;
+    msg('Kayıt sürüyor. Telefona dokunmayın. ' + dur + ' dk sonra otomatik durur.');
+    try { if (navigator.wakeLock) state.wake = await navigator.wakeLock.request('screen'); } catch (e) { }
+    state.timer = setTimeout(stop, dur * 60 * 1000);
+    tick();
+  }
+
+  function stop() {
+    if (!state.recording) return;
+    state.recording = false;
+    clearTimeout(state.timer);
+    requestAnimationFrame(idleLoop);
+    try { state.wake && state.wake.release(); } catch (e) { }
+    $('btnStart').disabled = false; $('btnStop').disabled = true;
+    if (state.t.length < 200) { msg('Yeterli veri yok (' + state.t.length + ' örnek). Sensör okunamadı veya kayıt çok kısa.', true); return; }
+    msg('Analiz ediliyor…');
+    setTimeout(analyze, 30);
+  }
+
+  let lastTick = 0;
+  function tick() {
+    const now = performance.now();
+    const n = state.t.length;
+    $('stN').textContent = n;
+    const el = (now - state.t0) / 1000;
+    $('stT').textContent = Math.floor(el / 60) + ':' + String(Math.floor(el % 60)).padStart(2, '0');
+    if (n > 20) {
+      const k = Math.min(n, 300);
+      const fs = (k - 1) / (state.t[n - 1] - state.t[n - k]);
+      $('stFs').textContent = fs.toFixed(1);
+      setPill('ok', 'çalışıyor');
+      $('sensorNote').textContent = fs < 40 ? 'Örnekleme hızı düşük (' + fs.toFixed(0) + ' Hz). 10 Hz üzeri modlar güvenilir olmayabilir; bina modları için yine de yeterlidir.' : 'Sensör ' + fs.toFixed(0) + ' Hz ile okunuyor; bina frekansları (0.3–20 Hz) için yeterli.';
+    } else if (el > 3 && n === 0) {
+      setPill('bad', 'veri yok');
+      $('sensorNote').textContent = 'Tarayıcı ivmeölçer olayı göndermiyor. Tanı satırına bakın.';
+    }
+    if (now - lastTick > 80) { drawLive(state); lastTick = now; }
+    if (state.recording) requestAnimationFrame(tick);
+  }
+
+  function setPill(cls, txt) { const p = $('pillSensor'); p.className = 'pill ' + cls; p.textContent = txt; }
+  function msg(s, bad) { const m = $('msg'); m.textContent = s; m.className = 'note ' + (bad ? 'bad-text' : ''); }
+
+  // ---------- canlı grafik ----------
+  function css(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+  function drawLive(B) {
+    const c = $('live'), ctx = c.getContext('2d'), W = c.width, H = c.height;
+    ctx.clearRect(0, 0, W, H);
+    const n = B.t.length; if (n < 2) return;
+    const tEnd = B.t[n - 1], tStart = tEnd - 10;
+    let i0 = n - 1; while (i0 > 0 && B.t[i0] > tStart) i0--;
+    const ch = [[B.ax, css('--x')], [B.ay, css('--y')], [B.az, css('--z')]];
+    // her kanaldan kendi ortalamasını çıkar, ortak ölçek
+    let mx = 1e-6; const means = [];
+    for (const [arr] of ch) { let s = 0; for (let i = i0; i < n; i++) s += arr[i]; const m = s / (n - i0); means.push(m); for (let i = i0; i < n; i++) mx = Math.max(mx, Math.abs(arr[i] - m)); }
+    const pad = 28;
+    ctx.strokeStyle = css('--line'); ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(pad, H / 2); ctx.lineTo(W, H / 2); ctx.stroke();
+    ctx.fillStyle = css('--muted'); ctx.font = '11px ' + css('--font');
+    ctx.fillText('±' + mx.toFixed(3), 2, 12);
+    ch.forEach(([arr, col], k) => {
+      ctx.strokeStyle = col; ctx.lineWidth = 1.2; ctx.beginPath();
+      for (let i = i0; i < n; i++) {
+        const x = pad + (B.t[i] - tStart) / 10 * (W - pad);
+        const y = H / 2 - (arr[i] - means[k]) / mx * (H / 2 - 8);
+        i === i0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    });
+  }
+
+  // ---------- analiz ----------
+  function analyze() {
+    const fs = parseInt($('fs').value, 10), fmin = parseFloat($('fmin').value) || 0.3, fmax = parseFloat($('fmax').value) || 20;
+    const axes = [['X', state.ax], ['Y', state.ay], ['Z', state.az]];
+    const out = { label: $('label').value, date: new Date().toISOString(), source: $('src').value, fs, fmin, fmax, nRaw: state.t.length, durationS: state.t[state.t.length - 1], measuredFs: (state.t.length - 1) / state.t[state.t.length - 1], axes: {} };
+    for (const [name, arr] of axes) {
+      const r = OMA.analyzeChannel(state.t, arr, { fs, fmin, fmax });
+      if (r.error) { msg(r.error, true); return; }
+      out.axes[name] = { modes: r.modes.map(m => ({ f: m.f, T: m.T, xiHalfPower: m.xiHalfPower, xiRDT: m.xiRDT, prominenceDb: m.prominenceDb })), psd: r.psd, nfft: r.psd.nfft, segments: r.psd.segments, df: r.psd.df };
+    }
+    state.result = out;
+    render(out);
+    saveHistory(out);
+    msg('Analiz tamamlandı. ' + out.nRaw + ' örnek, ' + out.durationS.toFixed(0) + ' s, spektrum çözünürlüğü ' + out.axes.X.df.toFixed(3) + ' Hz.');
+  }
+
+  function fmtPct(v) { return v == null || !isFinite(v) ? '–' : (v * 100).toFixed(2) + ' %'; }
+
+  function render(out) {
+    $('results').hidden = false;
+    // özet: en belirgin yatay mod (X veya Y)
+    const cand = [];
+    for (const ax of ['X', 'Y']) for (const m of out.axes[ax].modes) cand.push(Object.assign({ axis: ax }, m));
+    cand.sort((a, b) => b.prominenceDb - a.prominenceDb);
+    const s = $('summary');
+    if (cand.length) {
+      const m = cand[0];
+      const xi = m.xiHalfPower != null && m.xiRDT != null ? (m.xiHalfPower + m.xiRDT) / 2 : (m.xiHalfPower ?? m.xiRDT);
+      s.innerHTML = '<div class="modecard"><span class="k">Baskın yatay mod (' + m.axis + ')</span><span class="big">T = ' + m.T.toFixed(3) + ' s</span>'
+        + '<span class="k">Doğal frekans</span><span>' + m.f.toFixed(3) + ' Hz</span>'
+        + '<span class="k">Sönüm oranı (ort.)</span><span>' + fmtPct(xi) + '</span>'
+        + '<span class="k">Belirginlik</span><span>' + m.prominenceDb.toFixed(1) + ' dB' + (m.prominenceDb < 10 ? ' <span class="pill warn">zayıf tepe, kaydı uzatın</span>' : ' <span class="pill ok">iyi</span>') + '</span></div>';
+    } else {
+      s.innerHTML = '<p class="bad-text">Yatay eksenlerde belirgin bir tepe bulunamadı. Kaydı uzatın (10–20 dk), telefonu daha sıkı sabitleyin veya binanın üst katında ölçün.</p>';
+    }
+    const tb = $('modes').querySelector('tbody'); tb.innerHTML = '';
+    for (const ax of ['X', 'Y', 'Z']) for (const m of out.axes[ax].modes) {
+      const tr = document.createElement('tr');
+      tr.innerHTML = '<td>' + ax + '</td><td>' + m.f.toFixed(3) + '</td><td>' + m.T.toFixed(3) + '</td><td>' + fmtPct(m.xiHalfPower) + '</td><td>' + fmtPct(m.xiRDT) + '</td><td>' + m.prominenceDb.toFixed(1) + ' dB</td>';
+      tb.appendChild(tr);
+    }
+    if (!tb.children.length) tb.innerHTML = '<tr><td colspan="6">Tepe bulunamadı</td></tr>';
+    drawPsd(out);
+  }
+
+  function drawPsd(out) {
+    const c = $('psd'), ctx = c.getContext('2d'), W = c.width, H = c.height;
+    ctx.clearRect(0, 0, W, H);
+    const padL = 36, padB = 22, padT = 8, padR = 8;
+    const fmin = Math.max(out.fmin, 0.1), fmax = Math.min(out.fmax, out.fs / 2);
+    let lo = Infinity, hi = -Infinity;
+    const series = [];
+    for (const [ax, col] of [['X', css('--x')], ['Y', css('--y')], ['Z', css('--z')]]) {
+      const { f, P } = out.axes[ax].psd; const pts = [];
+      for (let i = 0; i < f.length; i++) if (f[i] >= fmin && f[i] <= fmax) { const db = 10 * Math.log10(P[i] + 1e-30); pts.push([f[i], db]); lo = Math.min(lo, db); hi = Math.max(hi, db); }
+      series.push([pts, col, ax]);
+    }
+    lo = Math.floor(lo / 10) * 10; hi = Math.ceil(hi / 10) * 10;
+    const logx = f => padL + (Math.log10(f) - Math.log10(fmin)) / (Math.log10(fmax) - Math.log10(fmin)) * (W - padL - padR);
+    const yy = db => padT + (hi - db) / (hi - lo) * (H - padT - padB);
+    ctx.strokeStyle = css('--line'); ctx.fillStyle = css('--muted'); ctx.font = '11px ' + css('--font'); ctx.lineWidth = 1;
+    for (let db = lo; db <= hi; db += 10) { ctx.beginPath(); ctx.moveTo(padL, yy(db)); ctx.lineTo(W - padR, yy(db)); ctx.stroke(); ctx.fillText(db, 2, yy(db) + 4); }
+    const ticks = [0.3, 0.5, 1, 2, 3, 5, 10, 20, 50].filter(v => v >= fmin && v <= fmax);
+    for (const v of ticks) { ctx.beginPath(); ctx.moveTo(logx(v), padT); ctx.lineTo(logx(v), H - padB); ctx.stroke(); ctx.fillText(v + '', logx(v) - 6, H - 6); }
+    ctx.fillText('Hz', W - 20, H - 6);
+    for (const [pts, col, ax] of series) {
+      ctx.strokeStyle = col; ctx.lineWidth = 1.3; ctx.beginPath();
+      pts.forEach(([f, db], i) => i ? ctx.lineTo(logx(f), yy(db)) : ctx.moveTo(logx(f), yy(db)));
+      ctx.stroke();
+      ctx.fillStyle = col;
+      for (const m of out.axes[ax].modes) {
+        // tepe seviyesi: en yakın bin
+        const { f, P } = out.axes[ax].psd; let k = 0, best = 1e9; for (let i = 0; i < f.length; i++) { const d = Math.abs(f[i] - m.f); if (d < best) { best = d; k = i; } }
+        const db = 10 * Math.log10(P[k] + 1e-30);
+        ctx.beginPath(); ctx.arc(logx(m.f), yy(db), 4, 0, Math.PI * 2); ctx.fill();
+        ctx.fillText(m.f.toFixed(2), logx(m.f) + 6, yy(db) - 4);
+      }
+    }
+  }
+
+  // ---------- dışa aktarma ----------
+  function download(name, text, type) {
+    const blob = new Blob([text], { type }); const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click();
+    setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 2000);
+  }
+  function stamp() { return new Date().toISOString().replace(/[:T]/g, '-').slice(0, 16); }
+  $('btnCsv').onclick = () => {
+    let s = '# OMA Kayit v0.1\n# etiket: ' + ($('label').value || '-') + '\n# kaynak: ' + $('src').value + '\n# t (s) performance.now tabanli; ivme m/s2\nt,ax,ay,az\n';
+    const parts = [s];
+    for (let i = 0; i < state.t.length; i++) parts.push(state.t[i].toFixed(4) + ',' + state.ax[i].toFixed(5) + ',' + state.ay[i].toFixed(5) + ',' + state.az[i].toFixed(5) + '\n');
+    download('oma_' + stamp() + '.csv', parts.join(''), 'text/csv');
+  };
+  $('btnJson').onclick = () => {
+    const r = state.result; if (!r) return;
+    const slim = JSON.parse(JSON.stringify(r, (k, v) => (k === 'psd' ? { f: Array.from(v.f), P: Array.from(v.P) } : v)));
+    download('oma_sonuc_' + stamp() + '.json', JSON.stringify(slim, null, 1), 'application/json');
+  };
+
+  // ---------- geçmiş ----------
+  function saveHistory(out) {
+    try {
+      const h = JSON.parse(localStorage.getItem('oma_hist') || '[]');
+      const top = []; for (const ax of ['X', 'Y', 'Z']) for (const m of out.axes[ax].modes) top.push(ax + ' ' + m.f.toFixed(2) + ' Hz');
+      h.unshift({ date: out.date, label: out.label, dur: out.durationS, modes: top.slice(0, 4).join(', ') });
+      localStorage.setItem('oma_hist', JSON.stringify(h.slice(0, 30)));
+    } catch (e) { }
+    loadHistory();
+  }
+  function loadHistory() {
+    try {
+      const h = JSON.parse(localStorage.getItem('oma_hist') || '[]'); const ul = $('history'); ul.innerHTML = '';
+      if (!h.length) { ul.innerHTML = '<li>Henüz ölçüm yok.</li>'; return; }
+      for (const r of h) { const li = document.createElement('li'); li.textContent = r.date.slice(0, 16).replace('T', ' ') + ' · ' + (r.label || '-') + ' · ' + Math.round(r.dur) + ' s · ' + (r.modes || 'tepe yok'); ul.appendChild(li); }
+    } catch (e) { }
+  }
+
+  $('btnStart').onclick = start; $('btnStop').onclick = stop;
+  loadHistory(); diag(); requestAnimationFrame(idleLoop);
+  if (!('DeviceMotionEvent' in window)) { setPill('bad', 'yok'); $('sensorNote').textContent = 'Bu tarayıcı hareket sensörlerini desteklemiyor. Android telefonda Chrome ile açın.'; }
+})();
+
+</script>
+</body>
+</html>
